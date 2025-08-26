@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Order } from '../types';
+import { Order, UserListItem } from '../types';
 
 interface OrderCardProps {
   order: Order;
+  user?: UserListItem | null;
 }
 
-export const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
+export const OrderCard: React.FC<OrderCardProps> = ({ order, user }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const formatDate = (date: Date) => {
@@ -28,6 +29,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
         <View style={styles.orderInfo}>
           <Text style={styles.orderId}>Order #{order.id.slice(-6)}</Text>
           <Text style={styles.orderDate}>{formatDate(order.createdAt)}</Text>
+          {user && (
+            <Text style={styles.orderedBy}>Ordered by: {user.name}</Text>
+          )}
         </View>
         <View style={styles.rightSection}>
           <Text style={styles.total}>${order.total.toFixed(2)}</Text>
@@ -91,6 +95,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 2,
+  },
+  orderedBy: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
   },
   rightSection: {
     alignItems: 'flex-end',

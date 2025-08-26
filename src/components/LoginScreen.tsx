@@ -50,7 +50,6 @@ export const LoginScreen: React.FC = () => {
           <Text style={styles.loginButtonText}>Sign In</Text>
         </TouchableOpacity>
         
-        <Text style={styles.bonusText}>🎉 Get $25 welcome bonus!</Text>
       </View>
     </View>
   );

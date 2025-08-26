@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { UserListItem } from '../types';
+import { useCoffeeStore } from '../stores/coffeeStore';
 
 interface UserCardProps {
   user: UserListItem;
@@ -13,6 +14,8 @@ export const UserCard: React.FC<UserCardProps> = ({
   onPress, 
   isCurrentUser = false 
 }) => {
+  useCoffeeStore();
+
   const formatLastSeen = (date?: Date) => {
     if (!date) return 'Never';
     
@@ -25,67 +28,85 @@ export const UserCard: React.FC<UserCardProps> = ({
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
   };
 
+  
+
   return (
-    <TouchableOpacity 
-      style={[
-        styles.card,
-        isCurrentUser && styles.currentUserCard,
-        !user.isActive && styles.inactiveCard
-      ]} 
-      onPress={onPress}
-    >
-      <View style={styles.leftSection}>
-        <View style={styles.avatarContainer}>
-          <Text style={styles.avatar}>
-            {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-          </Text>
-          {user.role === 'admin' && (
-            <View style={styles.adminBadge}>
-              <Text style={styles.adminBadgeText}>A</Text>
+    <View style={styles.cardContainer}>
+      <TouchableOpacity 
+        style={[
+          styles.card,
+          isCurrentUser && styles.currentUserCard,
+          !user.isActive && styles.inactiveCard
+        ]} 
+        onPress={onPress}
+      >
+        <View style={styles.leftSection}>
+          <View style={styles.avatarContainer}>
+            <Text style={styles.avatar}>
+              {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+            </Text>
+            {user.role === 'admin' && (
+              <View style={styles.adminBadge}>
+                <Text style={styles.adminBadgeText}>A</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.mainContent}>
+          <View style={styles.nameSection}>
+            <Text style={[styles.name, !user.isActive && styles.inactiveText]}>
+              {user.name}
+              {isCurrentUser && <Text style={styles.currentUserLabel}> (You)</Text>}
+            </Text>
+            <Text style={[styles.email, !user.isActive && styles.inactiveText]}>
+              {user.email}
+            </Text>
+          </View>
+
+          <View style={styles.statusSection}>
+            <View style={styles.balanceContainer}>
+              <Text style={styles.balanceLabel}>Balance</Text>
+              <Text style={[
+                styles.balance,
+                user.balance < 5 && styles.lowBalance,
+                !user.isActive && styles.inactiveText
+              ]}>
+                ${user.balance.toFixed(2)}
+              </Text>
             </View>
-          )}
-        </View>
-      </View>
-
-      <View style={styles.mainContent}>
-        <View style={styles.nameSection}>
-          <Text style={[styles.name, !user.isActive && styles.inactiveText]}>
-            {user.name}
-            {isCurrentUser && <Text style={styles.currentUserLabel}> (You)</Text>}
-          </Text>
-          <Text style={[styles.email, !user.isActive && styles.inactiveText]}>
-            {user.email}
-          </Text>
-        </View>
-
-        <View style={styles.statusSection}>
-          <View style={styles.balanceContainer}>
-            <Text style={styles.balanceLabel}>Balance</Text>
-            <Text style={[
-              styles.balance,
-              user.balance < 5 && styles.lowBalance,
-              !user.isActive && styles.inactiveText
-            ]}>
-              ${user.balance.toFixed(2)}
-            </Text>
-          </View>
-          
-          <View style={styles.statusContainer}>
-            <View style={[
-              styles.statusDot,
-              user.isActive ? styles.activeDot : styles.inactiveDot
-            ]} />
-            <Text style={[styles.lastSeen, !user.isActive && styles.inactiveText]}>
-              {formatLastSeen(user.lastSeen)}
-            </Text>
+            
+            <View style={styles.statusContainer}>
+              <View style={[
+                styles.statusDot,
+                user.isActive ? styles.activeDot : styles.inactiveDot
+              ]} />
+              <Text style={[styles.lastSeen, !user.isActive && styles.inactiveText]}>
+                {formatLastSeen(user.lastSeen)}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+
+      
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  cardContainer: {
+    marginHorizontal: 16,
+    marginVertical: 6,
+    borderRadius: 12,
+    overflow: 'hidden', // Ensure borderRadius applies to the container
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   card: {
     backgroundColor: 'white',
     marginHorizontal: 16,
@@ -208,4 +229,5 @@ const styles = StyleSheet.create({
   inactiveText: {
     color: '#999',
   },
+  
 });

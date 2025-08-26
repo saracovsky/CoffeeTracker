@@ -38,6 +38,7 @@ interface CoffeeAppState {
   setMenuItems: (items: MenuItem[]) => void;
   addToCart: (item: MenuItem) => void;
   removeFromCart: (itemId: string) => void;
+  updateCartItemQuantity: (itemId: string, quantity: number) => void;
   clearCart: () => void;
   
   // Order actions
@@ -60,9 +61,43 @@ export const useCoffeeStore = create<CoffeeAppState>((set, get) => ({
   user: null,
   isLoggedIn: false,
   transactions: [],
-  menuItems: [],
+  menuItems: [
+    { id: 'coffee1', name: 'Espresso', price: 2.50, category: 'Coffee', description: 'Strong Italian coffee' },
+    { id: 'coffee2', name: 'Cappuccino', price: 3.50, category: 'Coffee', description: 'Espresso with steamed milk foam' },
+    { id: 'coffee3', name: 'Latte', price: 4.00, category: 'Coffee', description: 'Espresso with steamed milk' },
+    { id: 'food1', name: 'Croissant', price: 2.00, category: 'Food', description: 'Buttery French pastry' },
+  ],
   cart: [],
-  orders: [],
+  orders: [
+    {
+      id: '1',
+      userId: '1', // Alice Smith
+      items: [
+        { id: 'coffee1', name: 'Espresso', price: 2.50, category: 'Coffee', quantity: 1 }
+      ],
+      total: 2.50,
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
+    },
+    {
+      id: '2',
+      userId: '2', // Bob Johnson
+      items: [
+        { id: 'coffee2', name: 'Cappuccino', price: 3.50, category: 'Coffee', quantity: 1 },
+        { id: 'food1', name: 'Croissant', price: 2.00, category: 'Food', quantity: 1 }
+      ],
+      total: 5.50,
+      createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
+    },
+    {
+      id: '3',
+      userId: '3', // Carol Davis
+      items: [
+        { id: 'coffee3', name: 'Latte', price: 4.00, category: 'Coffee', quantity: 2 }
+      ],
+      total: 8.00,
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
+    }
+  ],
 
   // App flow state
   appState: {
@@ -198,6 +233,23 @@ getFilteredMenuItems: () => {
   removeFromCart: (itemId) => set((state) => ({
     cart: state.cart.filter(item => item.id !== itemId)
   })),
+  
+  updateCartItemQuantity: (itemId, quantity) => set((state) => {
+    if (quantity <= 0) {
+      // If quantity is 0 or negative, remove the item
+      return {
+        cart: state.cart.filter(item => item.id !== itemId)
+      };
+    }
+    
+    return {
+      cart: state.cart.map(item =>
+        item.id === itemId
+          ? { ...item, quantity }
+          : item
+      )
+    };
+  }),
   
   clearCart: () => set({ cart: [] }),
 

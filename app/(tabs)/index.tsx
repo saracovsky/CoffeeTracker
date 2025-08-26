@@ -1,189 +1,214 @@
+import React, { useEffect, useState, useMemo } from 'react';
 import { StyleSheet, FlatList, View, Text, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useCoffeeStore } from '../../src/stores/coffeeStore';
-import { MenuItemCard } from '../../src/components/MenuItemCard';
+import { LoginScreen } from '../../src/components/LoginScreen';
+import { UserCard } from '../../src/components/UserCard';
 import { SearchBar } from '../../src/components/SearchBar';
 import { CategoryFilter } from '../../src/components/CategoryFilter';
-import { LoginScreen } from '../../src/components/LoginScreen';
-import { MenuItem } from '../../src/types';
-import { useEffect } from 'react';
+import { MenuItemCard } from '../../src/components/MenuItemCard';
+import { CartDisplay } from '../../src/components/CartDisplay';
+import { UserListItem } from '../../src/types';
+import type { MenuItem } from '../../src/types';
 
-
-// Your existing mockMenuItems (add more variety for better testing)
-const mockMenuItems: MenuItem[] = [
-  {
-    id: '1',
-    name: 'Espresso',
-    price: 2.50,
-    category: 'coffee',
-    description: 'Strong and bold coffee shot',
-  },
-  {
-    id: '2',
-    name: 'Cappuccino',
-    price: 4.00,
-    category: 'coffee',
-    description: 'Espresso with steamed milk foam',
-  },
-  {
-    id: '3',
-    name: 'Latte',
-    price: 4.50,
-    category: 'coffee',
-    description: 'Espresso with steamed milk',
-  },
-  {
-    id: '4',
-    name: 'Americano',
-    price: 3.00,
-    category: 'coffee',
-    description: 'Espresso with hot water',
-  },
-  {
-    id: '5',
-    name: 'Green Tea',
-    price: 2.50,
-    category: 'tea',
-    description: 'Fresh green tea leaves',
-  },
-  {
-    id: '6',
-    name: 'Earl Grey',
-    price: 2.75,
-    category: 'tea',
-    description: 'Classic black tea with bergamot',
-  },
-  {
-    id: '7',
-    name: 'Croissant',
-    price: 3.50,
-    category: 'pastry',
-    description: 'Buttery French pastry',
-  },
-  {
-    id: '8',
-    name: 'Chocolate Muffin',
-    price: 2.75,
-    category: 'pastry',
-    description: 'Fresh baked chocolate muffin',
-  },
-];
-
-export default function TabOneScreen() {
+export default function StudentsScreen() {
   const { 
-    setMenuItems, 
-    addToCart, 
+    userList, 
+    fetchUserList, 
     isLoggedIn, 
-    user, 
-    logoutUser,
+    user,
+    selectUser,
+    setSelectedCustomer,
+    selectedCustomer,
+    // Menu/cart/filters from store for embedded menu
     filters,
-    setSearchQuery,
-    setSelectedCategory,
+    setSearchQuery: setMenuSearchQuery,
+    setSelectedCategory: setMenuSelectedCategory,
     getFilteredMenuItems,
-    selectedCustomer
+    cart,
+    addToCart,
+    placeOrder,
   } = useCoffeeStore();
+  const router = useRouter();
+  const [showCart, setShowCart] = useState(false);
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterActive, setFilterActive] = useState(true);
 
-  console.log('Main Menu - selectedCustomer:', selectedCustomer?.name);
-  console.log('Main Menu - isLoggedIn:', isLoggedIn);
+  console.log('Student Screen - selectedCustomer:', selectedCustomer?.name);
 
   useEffect(() => {
-    setMenuItems(mockMenuItems);
-  }, [setMenuItems]);
+    if (isLoggedIn) {
+      fetchUserList().catch(error => {
+        console.error('Failed to fetch user list:', error);
+        // You could add a toast notification here
+      });
+    }
+  }, [isLoggedIn]); // Removed fetchUserList dependency since it's stable
+
+  // Memoize filtered users to prevent unnecessary recalculations
+  const filteredUsers = useMemo(() => {
+    return userList.filter(student => {
+      const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           student.email.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesFilter = !filterActive || student.isActive;
+      
+      return matchesSearch && matchesFilter;
+    });
+  }, [userList, searchQuery, filterActive]);
 
   // Show login screen if not logged in
   if (!isLoggedIn) {
     return <LoginScreen />;
   }
 
-  // Admin must select a student before ordering
-  if (!selectedCustomer) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Welcome, {user?.name}!</Text>
-          <Text style={styles.subtitle}>Please select a student to order coffee for</Text>
-        </View>
-        
-        <View style={styles.centerContent}>
-          <Text style={styles.messageText}>
-            You need to select a student from the Students tab before you can order coffee.
-          </Text>
-          <TouchableOpacity style={styles.studentButton} onPress={() => {}}>
-            <Text style={styles.studentButtonText}>Go to Students</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  const handleSignOut = () => {
-    logoutUser();
+  const handleUserPress = (student: UserListItem) => {
+    setSelectedCustomer(student);
   };
 
-  const filteredItems = getFilteredMenuItems();
+  const handlePlaceOrder = async () => {
+    const success = await placeOrder();
+    if (success) {
+      setShowCart(false);
+    }
+  };
 
-  const renderMenuItem = ({ item }: { item: MenuItem }) => (
-    <MenuItemCard 
-      item={item} 
-      onAddToCart={addToCart}
+  const renderUser = ({ item }: { item: UserListItem }) => (
+    <UserCard 
+      user={item} 
+      onPress={() => handleUserPress(item)}
+      isCurrentUser={false} // Admins are never "current users" in student context
     />
   );
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        {/* Simple Top Bar */}
-        <View style={styles.headerTop}>
-          <Text style={styles.userName}>Hi, {user?.name}!</Text>
-          <View style={styles.headerRight}>
-            <Text style={styles.balance}>${selectedCustomer.balance.toFixed(2)}</Text>
-            <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-              <Text style={styles.signOutText}>⚙️</Text>
-            </TouchableOpacity>
-          </View>
+      {/* Header removed to save vertical space */}
+
+      <View style={styles.controlsRow}>
+        <TouchableOpacity
+          style={[styles.filterButton, filterActive && styles.activeFilter]}
+          onPress={() => setFilterActive(!filterActive)}
+        >
+          <Text style={[styles.filterText, filterActive && styles.activeFilterText]}>
+            {filterActive ? 'Show All' : 'Active Only'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.splitPane}>
+        <View style={styles.sidebar}>
+          {filteredUsers.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No users found</Text>
+              <Text style={styles.emptySubtext}>Try adjusting your search or filter</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredUsers}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => {
+                const isSelected = selectedCustomer?.id === item.id;
+                return (
+                  <TouchableOpacity
+                    onPress={() => handleUserPress(item)}
+                    style={[styles.sidebarItem, isSelected && styles.sidebarItemSelected]}
+                  >
+                    <Text style={[styles.sidebarItemName, !item.isActive && styles.inactiveText]}>
+                      {item.name}
+                    </Text>
+                    <Text style={[styles.sidebarItemEmail, !item.isActive && styles.inactiveText]}>
+                      {item.email}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
         </View>
 
-        {/* Clean Title */}
-        <Text style={styles.title}>Coffee Menu</Text>
-        <Text style={styles.studentInfo}>Ordering for: {selectedCustomer.name}</Text>
+        <View style={styles.detailsPane}>
+          {!selectedCustomer ? (
+            <View style={styles.detailsEmpty}>
+              <Text style={styles.detailsTitle}>Select a student</Text>
+              <Text style={styles.detailsSubtitle}>Tap a student on the left to view details</Text>
+            </View>
+          ) : (
+            <View style={styles.detailsContent}>
+              {/* Compact header with student search (left) and balance/cart/toggle (right) */}
+              <View style={styles.detailsHeaderTop}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <SearchBar
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Search students..."
+                  />
+                </View>
+                <View style={styles.headerRightRow}>
+                  <Text style={styles.detailsBalance}>${selectedCustomer.balance.toFixed(2)}</Text>
+                  <View style={styles.cartIndicator}>
+                    <Text style={styles.cartIndicatorText}>{cart.length}</Text>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.cartToggleInline}
+                    onPress={() => setShowCart(!showCart)}
+                  >
+                    <Text style={styles.cartToggleText}>
+                      {showCart ? '📋 Menu' : `🛒 Cart (${cart.length})`}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Cart Toggle moved inline in header */}
+
+              {showCart ? (
+                <CartDisplay onPlaceOrder={handlePlaceOrder} />
+              ) : (
+                <>
+                  {/* Embedded Menu Controls */}
+                  <SearchBar
+                    value={filters.searchQuery}
+                    onChangeText={setMenuSearchQuery}
+                    placeholder="Search for coffee, tea, pastries..."
+                  />
+                  <CategoryFilter
+                    categories={filters.categories}
+                    selectedCategory={filters.selectedCategory}
+                    onSelectCategory={setMenuSelectedCategory}
+                  />
+                  <View style={styles.resultsInfo}>
+                    <Text style={styles.resultsText}>
+                      {getFilteredMenuItems().length} items
+                      {filters.searchQuery ? ` for "${filters.searchQuery}"` : ''}
+                      {filters.selectedCategory ? ` in ${filters.selectedCategory}` : ''}
+                    </Text>
+                  </View>
+                  {/* Embedded Menu Grid */}
+                  <FlatList
+                    data={getFilteredMenuItems()}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }: { item: MenuItem }) => (
+                      <MenuItemCard item={item} onAddToCart={addToCart} />
+                    )}
+                    numColumns={4}
+                    columnWrapperStyle={styles.row}
+                    style={styles.menuList}
+                    contentContainerStyle={{ paddingBottom: 16 }}
+                    ListEmptyComponent={() => (
+                      <View style={styles.emptyState}>
+                        <Text style={styles.emptyText}>No items found</Text>
+                        <Text style={styles.emptySubtext}>Try adjusting your search or filter</Text>
+                      </View>
+                    )}
+                  />
+                </>
+              )}
+            </View>
+          )}
+        </View>
       </View>
-
-      {/* Search Bar */}
-      <SearchBar
-        value={filters.searchQuery}
-        onChangeText={setSearchQuery}
-        placeholder="Search for coffee, tea, pastries..."
-      />
-
-      {/* Category Filter */}
-      <CategoryFilter
-        categories={filters.categories}
-        selectedCategory={filters.selectedCategory}
-        onSelectCategory={setSelectedCategory}
-      />
-
-      {/* Results Info */}
-      <View style={styles.resultsInfo}>
-        <Text style={styles.resultsText}>
-          {filteredItems.length} items
-          {filters.searchQuery ? ` for "${filters.searchQuery}"` : ''}
-          {filters.selectedCategory ? ` in ${filters.selectedCategory}` : ''}
-        </Text>
-      </View>
-
-      {/* Menu Items List */}
-      <FlatList
-        data={filteredItems}
-        renderItem={renderMenuItem}
-        keyExtractor={(item) => item.id}
-        style={styles.list}
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No items found</Text>
-            <Text style={styles.emptySubtext}>Try adjusting your search or filter</Text>
-          </View>
-        )}
-      />
     </View>
   );
 }
@@ -197,43 +222,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#eee',
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  balance: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#8B4513',
-    backgroundColor: '#f9f9f9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  signOutButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f5f5f5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  signOutText: {
-    fontSize: 16,
+  controlsRow: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+    gap: 8,
   },
   title: {
     fontSize: 24,
@@ -242,43 +237,146 @@ const styles = StyleSheet.create({
     color: '#8B4513',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
     textAlign: 'center',
-    marginTop: 8,
-  },
-  studentInfo: {
-    fontSize: 16,
     color: '#666',
-    textAlign: 'center',
-    marginTop: 8,
+    marginTop: 4,
   },
-  messageText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 20,
+  filterButton: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
-  studentButton: {
+  activeFilter: {
     backgroundColor: '#8B4513',
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 8,
-    alignSelf: 'center',
+    borderColor: '#8B4513',
   },
-  studentButtonText: {
+  filterText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  activeFilterText: {
+    color: 'white',
+  },
+  splitPane: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  sidebar: {
+    width: 260,
+    backgroundColor: 'white',
+    borderRightWidth: 1,
+    borderRightColor: '#eee',
+  },
+  sidebarItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f2f2f2',
+  },
+  sidebarItemSelected: {
+    backgroundColor: '#fef8f4',
+  },
+  sidebarItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  sidebarItemEmail: {
+    fontSize: 12,
+    color: '#666',
+  },
+  inactiveText: {
+    color: '#999',
+  },
+  detailsPane: {
+    flex: 1,
+    padding: 16,
+  },
+  detailsEmpty: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailsTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#8B4513',
+  },
+  detailsSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 6,
+  },
+  detailsContent: {
+    flex: 1,
+    gap: 8,
+  },
+  detailsHeaderTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  detailsName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333',
+  },
+  detailsEmail: {
+    fontSize: 14,
+    color: '#666',
+  },
+  detailsBalance: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#8B4513',
+    marginTop: 6,
+  },
+  headerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cartIndicator: {
+    backgroundColor: '#dc3545',
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 0,
+  },
+  cartIndicatorText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  cartToggleButton: {
+    backgroundColor: '#8B4513',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  cartToggleInline: {
+    backgroundColor: '#8B4513',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+  },
+  cartToggleText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
   resultsInfo: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 4,
     paddingVertical: 8,
   },
   resultsText: {
@@ -286,23 +384,58 @@ const styles = StyleSheet.create({
     color: '#666',
     fontStyle: 'italic',
   },
-  list: {
+  menuList: {
     flex: 1,
+  },
+  row: {
+    justifyContent: 'flex-start',
+    marginBottom: 8,
+  },
+  detailsActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  primaryButton: {
+    backgroundColor: '#8B4513',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+  },
+  primaryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  secondaryButton: {
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+  },
+  secondaryButtonText: {
+    color: '#333',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 60,
+    paddingHorizontal: 40,
   },
   emptyText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#666',
+    textAlign: 'center',
   },
   emptySubtext: {
     fontSize: 14,
     color: '#999',
+    textAlign: 'center',
     marginTop: 8,
+    lineHeight: 20,
   },
+  
 });

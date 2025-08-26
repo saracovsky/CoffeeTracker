@@ -29,8 +29,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Menu',
-          tabBarIcon: ({ color }) => <FontAwesome name="coffee" size={24} color="black" />,
+          title: 'Students',
+          tabBarIcon: ({ color }) => <FontAwesome name="group" size={24} color="black" />,
           headerRight: () => (
             <Link href="/modal" asChild>
               <Pressable>
@@ -47,6 +47,8 @@ export default function TabLayout() {
           ),
         }}
       />
+      {/** Menu tab removed; menu is embedded in Students */}
+
       <Tabs.Screen
         name="two"
         options={{
@@ -61,13 +63,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (<FontAwesome name="history" size={24} color="black" />),
         }}
       />
-      <Tabs.Screen
-        name="student"
-        options={{
-          title: 'Students',
-          tabBarIcon: ({ color }) => <FontAwesome name="users" size={24} color="black" />,
-        }}
-      />
+      
     </Tabs>
   );
 }

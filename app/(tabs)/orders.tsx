@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, FlatList, View, Text, TouchableOpacity } from 'react-native';
 import { useCoffeeStore } from '../../src/stores/coffeeStore';
 import { LoginScreen } from '../../src/components/LoginScreen';
@@ -6,16 +6,26 @@ import { OrderCard } from '../../src/components/OrderCard';
 import { Order } from '../../src/types';
 
 export default function OrdersScreen() {
-  const { orders, isLoggedIn, user } = useCoffeeStore();
+  const { orders, isLoggedIn, user, userList, fetchUserList } = useCoffeeStore();
+
+  // Fetch user list when component mounts
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchUserList();
+    }
+  }, [isLoggedIn, fetchUserList]);
 
   // Show login screen if not logged in
   if (!isLoggedIn) {
     return <LoginScreen />;
   }
 
-  const renderOrder = ({ item }: { item: Order }) => (
-    <OrderCard order={item} />
-  );
+  const renderOrder = ({ item }: { item: Order }) => {
+    // Find the user who placed this order
+    const orderUser = userList.find(user => user.id === item.userId);
+    
+    return <OrderCard order={item} user={orderUser} />;
+  };
 
   return (
     <View style={styles.container}>
