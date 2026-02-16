@@ -1,6 +1,6 @@
 # CoffeeTracker
 
-A cross-platform mobile application for tracking coffee purchases in System Research Group. Built as part of a thesis project to evaluate the impact of React Native optimization practices such as API caching, memoisation, debouncing and error boundaries on app performance. Optimization practices are isolated via feature flags. 
+A cross-platform mobile application for tracking beverage purchases in System Research Group. Built as part of a thesis project to evaluate the impact of React Native optimization practices such as API caching, memoisation, debouncing and error boundaries on app performance. Optimization practices are isolated via feature flags. 
 
 ## Tech Stack
 
