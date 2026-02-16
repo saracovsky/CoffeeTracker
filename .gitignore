@@ -35,3 +35,15 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+.env.local
+
+# Native build folders
+android/
+ios/
+
+# IDE
+.vscode/
+
+# Analysis
+dist-analysis/

@@ -1,8 +1,12 @@
 import { create } from 'zustand';
-import { MenuItem, User, CartItem, Order, Transaction, MenuFilters, UserListItem, UserSelectionMode, AppState, AdminUser, StudentUser} from '../types';
+import { MenuItem, User, Transaction, MenuFilters, UserListItem, UserSelectionMode, AppState } from '../types';
+import { userService } from '../services/userService';
+import { authService } from '../services/authService';
+import { drinkService } from '../services/drinkService';
+import * as Sentry from '@sentry/react-native';
 
 interface CoffeeAppState {
-  // Admin user state (no balance)
+  // Admin user state 
   user: User | null;
   isLoggedIn: boolean;
   transactions: Transaction[];
@@ -12,10 +16,6 @@ interface CoffeeAppState {
   
   // Menu state
   menuItems: MenuItem[];
-  cart: CartItem[];
-  
-  // Order state
-  orders: Order[];
 
   // Filter state
   filters: MenuFilters;
@@ -24,6 +24,13 @@ interface CoffeeAppState {
   userList: UserListItem[];
   userSelection: UserSelectionMode;
 
+  //PIN Verification state
+  pinVerifiedUserId: string | null;
+  verifiedPin: string | null;
+  verifySelectedUserPin: (pin: string) => Promise<boolean>;
+  clearPinVerification: () => void;
+  updateUserPin: (userId: string, oldPin: string, newPin: string) => Promise<boolean>;
+
   // Student management
   selectedCustomer: UserListItem | null;
   
@@ -31,19 +38,10 @@ interface CoffeeAppState {
   loginUser: (email: string, name: string) => void;
   logoutUser: () => void;
   
-  // Student balance management
-  addFundsToStudent: (studentId: string, amount: number, description: string) => Promise<boolean>;
-  
-  // Menu/Cart actions
+  // Menu actions
   setMenuItems: (items: MenuItem[]) => void;
-  addToCart: (item: MenuItem) => void;
-  removeFromCart: (itemId: string) => void;
-  updateCartItemQuantity: (itemId: string, quantity: number) => void;
-  clearCart: () => void;
-  
-  // Order actions
-  placeOrder: () => Promise<boolean>;
-
+  fetchMenuItems: () => Promise<void>;
+  fetchTransactionHistory: (userId: string) => Promise<Transaction[]>;
   // Filter actions
   setSearchQuery: (query: string) => void;
   setSelectedCategory: (category: string | null) => void;
@@ -54,6 +52,7 @@ interface CoffeeAppState {
   selectUser: (userId: string, purpose: 'buy_for' | 'view_profile') => void;
   clearUserSelection: () => void;
   setSelectedCustomer: (customer: UserListItem | null) => void;
+  
 }
 
 export const useCoffeeStore = create<CoffeeAppState>((set, get) => ({
@@ -61,43 +60,7 @@ export const useCoffeeStore = create<CoffeeAppState>((set, get) => ({
   user: null,
   isLoggedIn: false,
   transactions: [],
-  menuItems: [
-    { id: 'coffee1', name: 'Espresso', price: 2.50, category: 'Coffee', description: 'Strong Italian coffee' },
-    { id: 'coffee2', name: 'Cappuccino', price: 3.50, category: 'Coffee', description: 'Espresso with steamed milk foam' },
-    { id: 'coffee3', name: 'Latte', price: 4.00, category: 'Coffee', description: 'Espresso with steamed milk' },
-    { id: 'food1', name: 'Croissant', price: 2.00, category: 'Food', description: 'Buttery French pastry' },
-  ],
-  cart: [],
-  orders: [
-    {
-      id: '1',
-      userId: '1', // Alice Smith
-      items: [
-        { id: 'coffee1', name: 'Espresso', price: 2.50, category: 'Coffee', quantity: 1 }
-      ],
-      total: 2.50,
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-    },
-    {
-      id: '2',
-      userId: '2', // Bob Johnson
-      items: [
-        { id: 'coffee2', name: 'Cappuccino', price: 3.50, category: 'Coffee', quantity: 1 },
-        { id: 'food1', name: 'Croissant', price: 2.00, category: 'Food', quantity: 1 }
-      ],
-      total: 5.50,
-      createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-    },
-    {
-      id: '3',
-      userId: '3', // Carol Davis
-      items: [
-        { id: 'coffee3', name: 'Latte', price: 4.00, category: 'Coffee', quantity: 2 }
-      ],
-      total: 8.00,
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-    }
-  ],
+  menuItems: [],
 
   // App flow state
   appState: {
@@ -115,6 +78,8 @@ export const useCoffeeStore = create<CoffeeAppState>((set, get) => ({
 
   // Student management
   selectedCustomer: null,
+  pinVerifiedUserId: null,
+  verifiedPin: null,
 
   //Initialize filters
   filters: {
@@ -129,64 +94,41 @@ export const useCoffeeStore = create<CoffeeAppState>((set, get) => ({
       id: Date.now().toString(),
       name,
       email,
-      role: 'admin', // Admin role
+      role: 'admin',
       createdAt: new Date(),
     };
     
     set({ 
       user: newUser, 
       isLoggedIn: true,
-      transactions: [] // No transactions for admin
+      transactions: []
     });
   },
   
-  logoutUser: () => set({ 
-    user: null, 
-    isLoggedIn: false, 
-    cart: [], 
-    transactions: [],
-    orders: [],
-    selectedCustomer: null
-  }),
-  
-  // Student balance management
-  addFundsToStudent: async (studentId, amount, description) => {
-    const { userList } = get();
-    const student = userList.find(u => u.id === studentId);
-
-    if (!student) {
-      console.error('Student not found:', studentId);
-      return false;
+  logoutUser: async () => {
+    try {
+      // Logout from backend
+      await authService.logout();
+    } catch (error) {
+      console.error('Backend logout failed:', error);
     }
-
-    const transaction: Transaction = {
-      id: Date.now().toString(),
-      userId: studentId,
-      adminId: get().user?.id, // Track which admin added the funds
-      type: 'topup',
-      amount,
-      description,
-      createdAt: new Date(),
-    };
-
-    set((currentState) => ({
-      userList: currentState.userList.map(u =>
-        u.id === studentId ? { ...u, balance: u.balance + amount } : u
-      ),
-      transactions: [transaction, ...currentState.transactions],
-    }));
-
-    return true;
+    
+    set({
+      user: null,
+      isLoggedIn: false,
+      transactions: [],
+      selectedCustomer: null,
+      userList: []
+    });
   },
   
-  // Menu/Cart actions (unchanged)
+  // Menu actions
   setMenuItems: (items) => {
   const categories = Array.from(new Set(items.map(item => item.category)));
   set({ 
     menuItems: items,
     filters: {
       ...get().filters,
-      categories
     }
   });
 },
@@ -213,94 +155,56 @@ getFilteredMenuItems: () => {
     return matchesSearch && matchesCategory;
   });
 },
-  
-  addToCart: (item) => set((state) => {
-    const existingItem = state.cart.find(cartItem => cartItem.id === item.id);
-    if (existingItem) {
-      return {
-        cart: state.cart.map(cartItem =>
-          cartItem.id === item.id
-            ? { ...cartItem, quantity: cartItem.quantity + 1 }
-            : cartItem
-        )
-      };
-    }
-    return {
-      cart: [...state.cart, { ...item, quantity: 1 }]
-    };
-  }),
-  
-  removeFromCart: (itemId) => set((state) => ({
-    cart: state.cart.filter(item => item.id !== itemId)
-  })),
-  
-  updateCartItemQuantity: (itemId, quantity) => set((state) => {
-    if (quantity <= 0) {
-      // If quantity is 0 or negative, remove the item
-      return {
-        cart: state.cart.filter(item => item.id !== itemId)
-      };
-    }
-    
-    return {
-      cart: state.cart.map(item =>
-        item.id === itemId
-          ? { ...item, quantity }
-          : item
-      )
-    };
-  }),
-  
-  clearCart: () => set({ cart: [] }),
 
   // User list actions
   fetchUserList: async () => {
     try {
-      // TODO: Replace with real API call
-      const mockUserList: UserListItem[] = [
-        {
-          id: '1',
-          name: 'Alice Smith',
-          email: 'alice.smith@tum.de',
-          balance: 15.50,
-          isActive: true,
-          lastSeen: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-          role: 'user',
+      Sentry.addBreadcrumb({
+        category: 'data_fetch',
+        message: 'Starting to fetch user list',
+        level: 'info',
+        data: {
+          timestamp: new Date().toISOString(),
         },
-        {
-          id: '2', 
-          name: 'Bob Johnson',
-          email: 'bob.johnson@tum.de',
-          balance: 22.75,
-          isActive: true,
-          lastSeen: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-          role: 'user',
+      });
+      const backendUsers = await userService.getAllUsers();
+
+      Sentry.addBreadcrumb({
+        category: 'data_fetch',
+        message: 'Received user data from backend',
+        level: 'info',
+        data: {
+          userCount: backendUsers.length,
+          hasData: backendUsers.length > 0,
         },
-        {
-          id: '3',
-          name: 'Carol Davis',
-          email: 'carol.davis@tum.de', 
-          balance: 8.25,
-          isActive: false,
-          lastSeen: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-          role: 'user',
-        },
-        {
-          id: '5',
-          name: 'Eva Brown',
-          email: 'eva.brown@tum.de',
-          balance: 12.30,
-          isActive: true,
-          lastSeen: new Date(Date.now() - 1000 * 60 * 45), // 45 minutes ago
-          role: 'user',
-        },
-      ];
+      });
       
-      set({ userList: mockUserList });
-      return mockUserList; // Return the result for better error handling
+      // Transform backend users to UserListItem format
+      const userList: UserListItem[] = (backendUsers as any[]).map(u => ({
+        id: u.id,
+        name: `${u.first_name} ${u.last_name}`,
+        email: u.email,
+        balance: u.balance ?? 0,
+        isActive: true,
+        lastSeen: undefined,
+        role: 'user',
+        has_pin: !!u.has_pin,
+      }));
+
+      set({ userList });
+      return userList;
     } catch (error) {
-      console.error('Failed to fetch user list:', error);
-      throw error; // Re-throw for proper error handling in components
+      Sentry.addBreadcrumb({
+        category: 'data_fetch',
+        message: 'Failed to fetch user list',
+        level: 'error',
+        data: {
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        },
+      });
+      
+      console.error('Failed to fetch user list from backend:', error);
+      return [];
     }
   },
   
@@ -309,7 +213,9 @@ getFilteredMenuItems: () => {
       isSelecting: true,
       selectedUserId: userId,
       purpose,
-    }
+    },
+    pinVerifiedUserId: null,
+    verifiedPin: null,
   }),
   
   clearUserSelection: () => set({
@@ -321,56 +227,212 @@ getFilteredMenuItems: () => {
   }),
   
   setSelectedCustomer: (customer) => {
-    console.log('Store: Setting selected customer:', customer?.name);
-    console.log('Store: Previous selectedCustomer:', get().selectedCustomer?.name);
     set({ selectedCustomer: customer });
-    console.log('Store: New selectedCustomer:', get().selectedCustomer?.name);
   },
-  
-  // Order placement with balance deduction
-  placeOrder: async () => {
-    const state = get();
-    if (state.cart.length === 0) return false;
+
+  fetchMenuItems: async () => {
+    // Breadcrumb for starting fetch
+    Sentry.addBreadcrumb({
+      category: 'data_fetch',
+      message: 'Fetching menu items',
+      level: 'info',
+    });
+
+    try {
+    const drinks = await drinkService.getDrinks();
     
-    // Admin can only order for selected students, not for themselves
-    if (!state.selectedCustomer) {
-      console.error('No student selected for ordering');
+    if (drinks.length === 0) {
+      Sentry.captureMessage('Menu items fetched but empty', {
+        level: 'warning',
+        tags: {
+          data_issue: 'empty_menu',
+          screen: 'StudentsScreen',
+        },
+      });
+    }
+
+    const menuItems: MenuItem[] = drinks.map(drink => ({
+      id: drink.id,
+      name: drink.name,
+      price: drink.price,
+      category: drink.category || undefined,
+      description: drink.description || undefined,
+    }));
+
+    // Extract unique categories from drinks, filter out null/undefined
+    const categories = Array.from(
+      new Set(drinks.map(drink => drink.category).filter((cat): cat is string => !!cat))
+    );
+
+    set({ menuItems, filters: { ...get().filters, categories } });
+    
+    Sentry.addBreadcrumb({
+      category: 'data_fetch',
+      message: 'Menu items set successfully',
+      level: 'info',
+      data: {
+        itemCount: menuItems.length,
+        categoryCount: categories.length,
+      },
+    });
+
+  } catch (error) {
+    // Catch expected error: Network failure
+    Sentry.captureException(error, {
+      level: 'error',
+      tags: {
+        error_type: 'menu_fetch_failure',
+        api_endpoint: 'getDrinks',
+        screen: 'StudentsScreen',
+      },
+      extra: {
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        adminUser: get().user?.email,
+      },
+    });
+    
+    console.error('Failed to fetch menu items:', error);
+    
+    // Set empty menu to prevent app crash
+    set({ 
+      menuItems: [], 
+      filters: { ...get().filters, categories: [] } 
+    });
+    
+    // Re-throw to let UI handle it
+    throw error;
+  }
+},
+  
+  fetchTransactionHistory: async (userId: string) => {
+    try {
+      const transactions = await userService.getStudentTransactions(userId);
+      return transactions;
+    } catch (error) {
+      console.error('Failed to fetch transactions:', error);
+      throw error;
+  }
+},
+
+  // PIN verification actions
+  verifySelectedUserPin: async (pin: string) => {
+    const state = get();
+    const selected = state.selectedCustomer || state.userList.find(u => u.id === state.userSelection.selectedUserId) || null;
+    // Catch expected error: No user selected
+    if (!selected) {
+      const error = new Error('PIN verification attempted without selected user');
+      
+      Sentry.captureException(error, {
+        level: 'warning',
+        tags: {
+          error_type: 'no_user_for_pin_verification',
+          screen: 'PinModal',
+        },
+        extra: {
+          selectedCustomerId: state.selectedCustomer?.id,
+          userSelectionId: state.userSelection.selectedUserId,
+          adminUser: state.user?.email,
+        },
+      });
+      
       return false;
     }
     
-    const total = state.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    
-    // Check if selected student has enough funds
-    if (state.selectedCustomer.balance < total) {
-      return false; // Insufficient funds
+    try {
+      // Add breadcrumb for PIN attempt
+      Sentry.addBreadcrumb({
+        category: 'authentication',
+        message: 'PIN verification attempt',
+        level: 'info',
+        data: {
+          userId: selected.id,
+          userName: selected.name,
+        },
+      });
+      
+      const ok = await userService.checkUserPin(selected.id, pin);
+      
+      if (ok) {
+        // Success breadcrumb
+        Sentry.addBreadcrumb({
+          category: 'authentication',
+          message: 'PIN verified successfully',
+          level: 'info',
+          data: {
+            userId: selected.id,
+          },
+        });
+        
+        set({ pinVerifiedUserId: selected.id, verifiedPin: pin });
+      } else {
+        // Catch expected error: Wrong PIN
+        const error = new Error('Incorrect PIN entered');
+        
+        Sentry.captureException(error, {
+          level: 'info',
+          tags: {
+            error_type: 'incorrect_pin',
+            screen: 'PinModal',
+          },
+          extra: {
+            userId: selected.id,
+            userName: selected.name,
+            hasPin: selected.has_pin,
+          },
+          user: {
+            id: selected.id,
+            email: selected.email,
+            username: selected.name,
+          },
+        });
+      }
+      
+      return ok;
+      
+    } catch (error) {
+      // Catch unexpected error: API failure
+      Sentry.captureException(error, {
+        level: 'error',
+        tags: {
+          error_type: 'pin_verification_api_failure',
+          api_endpoint: 'checkUserPin',
+          screen: 'PinModal',
+        },
+        extra: {
+          userId: selected.id,
+          userName: selected.name,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        },
+        user: {
+          id: selected.id,
+          email: selected.email,
+          username: selected.name,
+        },
+      });
+      
+      console.error('PIN verification API failed:', error);
+      return false;
     }
-    
-    // Create order
-    const orderId = Date.now().toString();
-    const order: Order = {
-      id: orderId,
-      userId: state.selectedCustomer.id,
-      items: [...state.cart],
-      total,
-      createdAt: new Date(),
-    };
-    
-    // Deduct funds from the selected student
-    set((currentState) => ({
-      selectedCustomer: {
-        ...currentState.selectedCustomer!,
-        balance: currentState.selectedCustomer!.balance - total,
-      },
-      userList: currentState.userList.map(u =>
-        u.id === state.selectedCustomer!.id 
-          ? { ...u, balance: u.balance - total }
-          : u
-      ),
-      orders: [order, ...currentState.orders],
-      cart: [], // Clear cart after successful order
-    }));
-    
-    return true;
+  },
+
+  clearPinVerification: () => set({ pinVerifiedUserId: null, verifiedPin: null }),
+
+  updateUserPin: async (userId, oldPin, newPin) => {
+    try {
+      const success = await userService.updateUserPin(userId, oldPin, newPin);
+
+      // Clear PIN verification state after successful PIN update
+      // This forces the user to re-enter their new PIN for the next purchase
+      if (success) {
+        set({ pinVerifiedUserId: null, verifiedPin: null });
+      }
+
+      return success;
+    } catch (error) {
+      console.error('Failed to update PIN:', error);
+      return false;
+    }
   },
 
 }));

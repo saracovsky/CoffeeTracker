@@ -2,7 +2,7 @@ export interface MenuItem {
   id: string;
   name: string;
   price: number;
-  category: string;
+  category?: string;
   description?: string;
   imageUrl?: string;
 }
@@ -11,31 +11,10 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  balance?: number;
   role: 'admin' | 'staff';
   createdAt: Date;
-}
-
-export interface CartItem extends MenuItem {
-  quantity: number;
-}
-
-export interface Order {
-  id: string;
-  userId: string;
-  items: CartItem[];
-  total: number;
-  createdAt: Date;
-}
-
-export interface Transaction {
-  id: string;
-  userId: string;
-  adminId?: string; 
-  type: 'topup' | 'purchase' | 'refund';
-  amount: number;
-  description: string;
-  orderId?: string;
-  createdAt: Date;
+  has_pin?: boolean;
 }
 
 export interface MenuFilters {
@@ -52,6 +31,7 @@ export interface UserListItem {
   isActive: boolean;
   lastSeen?: Date;
   role: 'user' | 'admin';
+  has_pin: boolean;
 }
 
 export interface UserSelectionMode {
@@ -89,4 +69,48 @@ export interface AddMoneyRequest {
 export interface AppState {
   currentFlow: 'admin_login' | 'user_selection' | 'ordering';
   adminUser: AdminUser | null;
+}
+
+// Authentication types
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  valid_until: string;
+}
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  token: string | null;
+  tokenExpiry: string | null;
+  user: User | null;
+}
+
+export interface Drink {
+  id: string;
+  name: string;
+  icon?: string | null;
+  price: number;
+  stock?: number | null;
+  category?: string | null;
+  description?: string | null;
+}
+export interface PurchaseType {
+  icon: string;
+  name: string;
+}
+
+export type TransactionType =
+  | { Purchase: PurchaseType }
+  ;
+
+export interface Transaction {
+  id: string;
+  timestamp: Date; 
+  amount: number;
+  transaction_type: TransactionType;
 }

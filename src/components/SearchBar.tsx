@@ -22,6 +22,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         placeholderTextColor="#999"
         autoCapitalize="none"
         autoCorrect={false}
+        testID="search-bar-input"
       />
     </View>
   );

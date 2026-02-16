@@ -26,6 +26,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
             selectedCategory === null && styles.selectedButton
           ]}
           onPress={() => onSelectCategory(null)}
+          testID="category-filter-all"
         >
           <Text style={[
             styles.categoryText,
@@ -44,6 +45,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
               selectedCategory === category && styles.selectedButton
             ]}
             onPress={() => onSelectCategory(category)}
+            testID={`category-filter-${category}`}
           >
             <Text style={[
               styles.categoryText,

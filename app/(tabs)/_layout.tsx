@@ -1,59 +1,73 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Link, Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
-
+import { Tabs } from 'expo-router';
+import { Pressable, Alert, Platform } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/src/components/useColorScheme';
 import { useClientOnlyValue } from '@/src/components/useClientOnlyValue';
+import { useCoffeeStore } from '@/src/stores/coffeeStore';
+import { queryClient } from '@/src/config/queryClient';
 
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-}) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
-}
-
-export default function TabLayout() {
+function TabLayout() {
   const colorScheme = useColorScheme();
+  const { isLoggedIn, logoutUser } = useCoffeeStore();
+
+  const handleLogout = async () => {
+    const performLogout = async () => {
+      queryClient.clear();
+      await logoutUser();
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to logout?')) {
+        await performLogout();
+      }
+    } else {
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Logout',
+            style: 'destructive',
+            onPress: performLogout,
+          },
+        ]
+      );
+    }
+  };
 
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, true),
+        tabBarStyle: isLoggedIn ? undefined : { display: 'none' },
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Students',
           tabBarIcon: ({ color }) => <FontAwesome name="group" size={24} color="black" />,
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable>
+          headerRight: () =>
+            isLoggedIn ? (
+              <Pressable
+                onPress={handleLogout}
+                testID="header-logout-button"
+                style={{ marginRight: 15 }}
+              >
                 {({ pressed }) => (
                   <FontAwesome
-                    name="info-circle"
+                    name="sign-out"
                     size={25}
                     color={Colors[colorScheme ?? 'light'].text}
-                    style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
+                    style={{ opacity: pressed ? 0.5 : 1 }}
                   />
                 )}
               </Pressable>
-            </Link>
-          ),
-        }}
-      />
-      {/** Menu tab removed; menu is embedded in Students */}
-
-      <Tabs.Screen
-        name="two"
-        options={{
-          title: 'Cart',
-          tabBarIcon: ({ color }) => <FontAwesome name="shopping-cart" size={24} color="black" />,
+            ) : null,
         }}
       />
       <Tabs.Screen
@@ -63,7 +77,8 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (<FontAwesome name="history" size={24} color="black" />),
         }}
       />
-      
+
     </Tabs>
   );
 }
+export default Sentry.wrap(TabLayout);

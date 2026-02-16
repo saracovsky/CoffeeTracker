@@ -1,25 +1,34 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MenuItem } from '../types';
+import { trackInteraction } from '../utils/sentryInteraction';
 
 interface MenuItemCardProps {
   item: MenuItem;
-  onAddToCart: (item: MenuItem) => void;
+  onPlaceOrder: (item: MenuItem) => Promise<void>;
 }
 
-export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onAddToCart }) => {
+export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item, onPlaceOrder }) => {
+  const handlePress = async () => {
+    await trackInteraction(`buy-drink-${item.id}`, async () => {
+      await onPlaceOrder(item);
+    });
+  };
+
   return (
     <View style={styles.card}>
       <Text style={styles.name}>{item.name}</Text>
       <Text style={styles.description}>{item.description}</Text>
       <View style={styles.footer}>
         <Text style={styles.price}>${item.price.toFixed(2)}</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.addButton}
-          onPress={() => onAddToCart(item)}
+          onPress={handlePress}
+          testID={`buy-drink-${item.id}`}
+          accessibilityLabel={`buy-drink-${item.id}`}
         >
-          <Text style={styles.addButtonText}>Add to Cart</Text>
-        </TouchableOpacity>
+        <Text style={styles.addButtonText}>Buy Now</Text>
+      </TouchableOpacity>
       </View>
     </View>
   );
